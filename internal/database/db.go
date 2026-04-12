@@ -1,29 +1,29 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"log"
 
 	"kairo-backend/internal/config"
 
-	"github.com/jackc/pgx/v5"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-func NewDB(cfg *config.Config) *pgx.Conn {
+func NewDB(cfg *config.Config) *gorm.DB {
 	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		cfg.DBHost,
 		cfg.DBUser,
 		cfg.DBPass,
-		cfg.DBHost,
-		cfg.DBPort,
 		cfg.DBName,
+		cfg.DBPort,
 	)
 
-	conn, err := pgx.Connect(context.Background(), dsn)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect DB:", err)
+		log.Fatal("failed to connect database:", err)
 	}
 
-	return conn
+	return db
 }
