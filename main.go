@@ -1,15 +1,37 @@
 package main
 
-import "github.com/gin-gonic/gin"
+import (
+	"kairo-backend/internal/config"
+	"kairo-backend/internal/database"
+	"kairo-backend/internal/model"
+
+	"github.com/gin-gonic/gin"
+)
 
 func main() {
-    r := gin.Default()
+	cfg := config.LoadConfig()
+	db := database.NewDB(cfg)
 
-    r.GET("/", func(c *gin.Context) {
-        c.JSON(200, gin.H{
-            "message": "API jalan",
-        })
-    })
+	AUTOMIGRATE := true
 
-    r.Run(":8080")
+	if AUTOMIGRATE == true {
+		db.AutoMigrate(
+			&model.MasterCity{},
+			&model.User{},
+			&model.Seller{},
+			&model.Category{},
+			&model.Products{},
+		)
+	}
+
+	
+	r := gin.Default()
+
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "API jalan",
+		})
+	})
+
+	r.Run(":8080")
 }
