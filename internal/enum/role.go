@@ -1,12 +1,13 @@
 package enum
 
-type Role string
+type Role int
 
 const (
-	RoleBuyer  Role = "buyer"
-	RoleSeller Role = "seller"
+	RoleBuyer  Role = 1
+	RoleSeller Role = 2
+	RoleAdmin  Role = 3
 )
 
 func (r Role) IsValid() bool {
-	return r == RoleBuyer || r == RoleSeller
+	return r == RoleBuyer || r == RoleSeller || r == RoleAdmin
 }

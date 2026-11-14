@@ -1,12 +1,12 @@
 package enum
 
-type Status string
+type Status int
 
 const (
-	StatusPending   Status = "pending"
-	StatusConfirmed Status = "confirmed"
-	StatusShipped   Status = "shipped"
-	StatusDelivered Status = "delivered"
+	StatusPending   Status = 1
+	StatusConfirmed Status = 2
+	StatusShipped   Status = 3
+	StatusDelivered Status = 4
 )
 
 func (s Status) IsValid() bool {
