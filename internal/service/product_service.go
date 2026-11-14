@@ -2,8 +2,7 @@ package service
 
 import (
 	"kairo-backend/internal/model"
-
-	"gorm.io/gorm"
+	"kairo-backend/internal/repository"
 )
 
 type ProductService interface {
@@ -11,17 +10,22 @@ type ProductService interface {
 }
 
 type productService struct {
-	db *gorm.DB
+	productRepo repository.ProductRepository
 }
 
-func NewProductService(db *gorm.DB) ProductService {
-	return &productService{db: db}
+func InitProductService(
+	productRepo repository.ProductRepository,
+) ProductService {
+	return &productService{
+		productRepo: productRepo,
+	}
 }
 
 func (s *productService) GetAllProducts() ([]model.Product, error) {
-	var products []model.Product
-	if err := s.db.Preload("Seller").Preload("Category").Find(&products).Error; err != nil {
+	products, err := s.productRepo.GetAllProducts()
+	if err != nil {
 		return nil, err
 	}
+
 	return products, nil
 }

@@ -8,11 +8,17 @@ import (
 )
 
 type ProductHandler struct {
-	ProductService service.ProductService
+	productService service.ProductService
+}
+
+func InitProductHandler(s service.ProductService) *ProductHandler {
+	return &ProductHandler{
+		productService: s,
+	}
 }
 
 func (h *ProductHandler) GetAllProducts(c *gin.Context) {
-	products, err := h.ProductService.GetAllProducts()
+	products, err := h.productService.GetAllProducts()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
