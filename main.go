@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"kairo-backend/configs"
 	"kairo-backend/internal/config"
 	"kairo-backend/internal/database"
 	"kairo-backend/internal/handler"
@@ -15,46 +16,40 @@ import (
 )
 
 func main() {
-	cfg := config.LoadConfig()
-	db := database.NewDB(cfg)
+	appConfig := configs.LoadAppConfig()
+	dbConfig := config.LoadConfig()
 
-	AUTOMIGRATE := true
+	db := database.NewDB(dbConfig)
 
-	if AUTOMIGRATE {
-		if err := db.AutoMigrate(
-			&model.MasterCity{},
-			&model.User{},
-			&model.Seller{},
-			&model.Category{},
-			&model.Product{},
-			&model.ProductImage{},
-			&model.Address{},
-			&model.OrderHeader{},
-			&model.OrderDetail{},
-			&model.Payment{},
-			&model.AuditLog{},
-		); err != nil {
+	log.Println("[INFO] Current running environment :", appConfig.AppEnv)
+
+	if appConfig.AutoMigrate {
+		log.Println("[WARNING] AutoMigrate is ENABLED. Database schema may be modified.")
+		if err := db.AutoMigrate(model.AllModels()...); err != nil {
 			log.Fatal("Auto migration failed: ", err)
 		}
+		log.Println("[INFO] AutoMigrate completed successfully.")
+	} else {
+		log.Println("[INFO] AutoMigrate is DISABLED. Skipping database migration.")
 	}
 
 	r := gin.Default()
 
-	// auth service + handler
+	// Auth service + handler
 	authRepo := repository.InitAuthRepository(db)
 	authService := service.InitAuthService(authRepo)
 	authHandler := handler.InitAuthHandler(authService)
 
-	// wire product service + handler
+	// Product service + handler
 	productRepo := repository.InitProductRepository(db)
 	productService := service.InitProductService(productRepo)
 	productHandler := handler.InitProductHandler(productService)
 
-	// routes initialization
+	// Routes initialization
 	routes.AuthRoutes(r, authHandler)
 	routes.ProductRoutes(r, productHandler)
 
-	if err := r.Run(":8080"); err != nil {
+	if err := r.Run(":" + appConfig.ServerPort); err != nil {
 		log.Fatal("Server failed to start: ", err)
 	}
 }
