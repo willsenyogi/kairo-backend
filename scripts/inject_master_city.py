@@ -30,29 +30,26 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASS"),
 }
 
-TABLE_NAME = "master_cities"
 BATCH_SIZE = 100
 
+
 def validate_config():
-    required_vars = [
-        "DB_NAME",
-        "DB_USER",
-        "DB_PASSWORD",
-    ]
+    required_vars = {
+        "DB_NAME": DB_CONFIG["dbname"],
+        "DB_USER": DB_CONFIG["user"],
+        "DB_PASS": DB_CONFIG["password"],
+    }
 
     missing = [
-        key for key in required_vars
-        if not DB_CONFIG.get({
-            "DB_NAME": "dbname",
-            "DB_USER": "user",
-            "DB_PASSWORD": "password",
-        }[key])
+        key for key, value in required_vars.items()
+        if not value
     ]
 
     if missing:
         raise EnvironmentError(
             f"Missing database configuration: {', '.join(missing)}"
         )
+
 
 def fetch_city_data():
     print("[INFO] Fetching Indonesia administrative data...")
@@ -92,7 +89,15 @@ def fetch_city_data():
         )
     )
 
-    if not reader.fieldnames or "name" not in reader.fieldnames:
+    required_columns = {
+        "code",
+        "province_code",
+        "name"
+    }
+
+    if not reader.fieldnames or not required_columns.issubset(
+        reader.fieldnames
+    ):
         raise RuntimeError(
             f"Unexpected CSV structure: {reader.fieldnames}"
         )
@@ -100,20 +105,33 @@ def fetch_city_data():
     cities = []
 
     for row in reader:
+        code = (row.get("code") or "").strip()
+        province_code = (row.get("province_code") or "").strip()
         name = (row.get("name") or "").strip()
 
-        if name:
-            cities.append(name)
+        if not code or not province_code or not name:
+            raise RuntimeError(
+                f"Invalid city record found: {row}"
+            )
+
+        cities.append({
+            "code": code,
+            "province_code": province_code,
+            "name": name
+        })
 
     if not cities:
         raise RuntimeError("Dataset contains no city records")
 
-    if len(cities) != len(set(cities)):
-        raise RuntimeError("Duplicate city names found in dataset")
+    city_codes = [city["code"] for city in cities]
+
+    if len(city_codes) != len(set(city_codes)):
+        raise RuntimeError("Duplicate city codes found in dataset")
 
     print(f"[INFO] Retrieved {len(cities)} records")
 
     return cities
+
 
 def seed_cities(cities):
     connection = None
@@ -125,26 +143,53 @@ def seed_cities(cities):
 
         with connection:
             with connection.cursor() as cursor:
+                province_codes = list({
+                    city["province_code"]
+                    for city in cities
+                })
 
-                # Ensure name uniqueness for ON CONFLICT
-                cursor.execute("""
-                    CREATE UNIQUE INDEX IF NOT EXISTS
-                    idx_master_cities_name
-                    ON master_cities (name);
-                """)
+                cursor.execute(
+                    """
+                    SELECT id, code
+                    FROM master_provinces
+                    WHERE code = ANY(%s);
+                    """,
+                    (province_codes,)
+                )
+
+                province_map = {
+                    str(code): province_id
+                    for province_id, code in cursor.fetchall()
+                }
+
+                missing_provinces = (
+                    set(province_codes) - set(province_map.keys())
+                )
+
+                if missing_provinces:
+                    raise RuntimeError(
+                        "Missing province codes in database: "
+                        f"{', '.join(sorted(missing_provinces))}"
+                    )
 
                 now = datetime.now(timezone.utc)
 
                 records = [
-                    (name, now, now)
-                    for name in cities
+                    (
+                        province_map[city["province_code"]],
+                        city["code"],
+                        city["name"],
+                        now,
+                        now
+                    )
+                    for city in cities
                 ]
 
                 insert_query = """
                     INSERT INTO master_cities
-                        (name, created_at, updated_at)
+                        (province_id, code, name, created_at, updated_at)
                     VALUES %s
-                    ON CONFLICT (name) DO NOTHING;
+                    ON CONFLICT DO NOTHING;
                 """
 
                 execute_values(
@@ -156,10 +201,12 @@ def seed_cities(cities):
 
                 inserted = cursor.rowcount
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT COUNT(*)
                     FROM master_cities;
-                """)
+                    """
+                )
 
                 total = cursor.fetchone()[0]
 
@@ -174,6 +221,7 @@ def seed_cities(cities):
     finally:
         if connection:
             connection.close()
+
 
 def main():
     try:
@@ -192,4 +240,5 @@ if __name__ == "__main__":
     main()
 
 
-# run this with `python scripts/inject_master_city.py`
+# Run:
+# python scripts/inject_master_city.py
